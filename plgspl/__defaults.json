@@ -5,13 +5,13 @@
   },
   "maxPages": {
     "description": "maximum pages to devote to a given file/answer part/type, including question ctx",
-    "file": 2,
-    "string": 1,
-    "default": 1
+    "file": 3,
+    "string": 2,
+    "default": 2
   },
   "files": {
     "description": "extensions of files plgspl should treat as code, pictures, or markdown",
-    "code": ["cpp", "h"],
+    "code": ["cpp", "h", "java"],
     "pics": ["png", "jpeg"],
     "md": ["md"]
   },

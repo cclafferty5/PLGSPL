@@ -42,7 +42,6 @@ def to_pdf(info_json, manual_csv, file_dir=None):
 
         qid = m['qid']
         sid = m['submission_id']
-
         submission = submissions.get(uid)
         if not submission:
             submission = qs.Submission(uid)
@@ -80,6 +79,7 @@ def to_pdf(info_json, manual_csv, file_dir=None):
         v.render_submission(
             pdf, config, template_submission=template_submission)
         if i == 0:
+            print(v.uid)
             sample_pdf = PDF()
             v.render_submission(sample_pdf, config, True)
             template_submission = v

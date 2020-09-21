@@ -421,7 +421,10 @@ class StudentQuestion:
         self.question = q
         self.file_bundle = file_bundle
         self.variant = variant if variant else q.qid
-        self.score = json.loads(raw_partial_scores)
+        try:
+            self.score = json.loads(raw_partial_scores)
+        except:
+            self.score = {}
         self.params = json.loads(raw_params)
 
         ans_key = json.loads(raw_ans_key)
@@ -509,9 +512,9 @@ class StudentQuestion:
             by default, does not start a new page for the first question.
         '''
         self.question.render(pdf)
-        if get_cfg('questions', 'dumpParams', default=False):
-            pdf.multi_cell(lineWidth, lineHeight, txt=json.dumps(self.params))
-            draw_line(pdf)
+        #if get_cfg('questions', 'dumpParams', default=False):
+         #   pdf.multi_cell(lineWidth, lineHeight, txt=json.dumps(self.params))
+          #  draw_line(pdf)
         for i, p in enumerate(self.parts):
             if i != 0:
                 pdf.add_page()
