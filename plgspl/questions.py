@@ -125,13 +125,15 @@ class QuestionInfo():
                  variants: List[str] = False,
                  parts: List[str] = False,
                  expected_files: set = False,
-                 number_choose: int = 1):
+                 number_choose: int = 1,
+                 is_mc: bool = False):
         self.qid = qid
         self.number = number
         self.expected_files = expected_files or set()
         self.parts = parts or []
         self.number_choose = number_choose
         self.variants = variants or [qid]
+        self.is_mc = is_mc
 
     def add_file(self, filename):
         self.expected_files.add(parse_filename(filename, self.qid))
@@ -169,6 +171,7 @@ class AssignmentConfig:
 
     def get_question(self, qid) -> QuestionInfo:
         return self.questions.get(qid, None)
+
 
 
 class StudentFileBundle():
@@ -295,9 +298,24 @@ class FileQuestionPart(QuestionPart):
         self.file_bundle = file_bundle
         self.max_pages = get_cfg("maxPages", "file",
                                  cast=int, default=1) * len(files)
+        self.score = -1 # for manually graded coding questions
 
     def render_ctx(self, pdf): pass
-    def render_expected(self, pdf): pass
+    #def render_expected(self, pdf): pass
+
+    def render(self, pdf: PDF, as_template=False):
+        start = pdf.page_no()
+        """
+        render_part_header(
+            pdf, f'Question {self.question_number}.{self.part}: {self.key}')
+        pdf.set_font(get_cfg('font', 'body', 'font', default='arial'),
+                     size=get_cfg('font', 'body', 'font', cast=int, default=10))
+        # self.render_ctx(pdf)
+        """
+        self.render_ans(
+            pdf) if not as_template else self.render_template_ans(pdf)
+        pad_until(pdf, start + self.max_pages - 1,
+                  f'padding for question {self.question_number}.{self.part}')
 
     def render_ans_helper(self, pdf: PDF, template=False):
         if self.file_bundle:
@@ -325,6 +343,7 @@ class StringQuestionPart(QuestionPart):
         self.ctx = ctx
         self.true_ans = str(true_ans)
         self.max_pages = get_cfg('maxPages', 'string', cast=int, default=1)
+        self.score = -1
 
     def render_ctx(self, pdf: PDF):
         if isinstance(self.ctx, str):
@@ -336,10 +355,39 @@ class StringQuestionPart(QuestionPart):
             pdf.multi_cell(lineWidth, lineHeight, txt=json.dumps(self.ctx))
 
     def render_expected(self, pdf):
-        pdf.multi_cell(lineWidth, lineHeight, txt=f'Expected: {self.true_ans}')
+        pdf.multi_cell(lineWidth, lineHeight, txt=f'Correct answer: "{self.true_ans}"')
+        
 
     def render_ans(self, pdf: PDF):
-        pdf.multi_cell(lineWidth, lineHeight, to_latin1(self.ans))
+        pdf.multi_cell(lineWidth, lineHeight, txt="Your answer: " + to_latin1(f'"{self.ans}"'))
+
+    def render_full(self, pdf: PDF):
+        pdf.multi_cell(lineWidth, lineHeight, txt=f"{self.part}) '{to_latin1(self.ans)}'")
+
+    def render(self, pdf: PDF, as_template=False):
+        """
+            render a question part onto the pdf.
+            1. renders the question ctx, if any
+            2. adds the gs grading anchor
+            3. renders the given answer, if any
+            4. pads until we've reached the max pages for the question.
+
+            if as_template is true, will not render answer, and anchor will be empty.
+        """
+        start = pdf.page_no()
+        render_part_header(
+            pdf, f'Question {self.question_number}.{self.part}: {self.key}')
+        pdf.set_font(get_cfg('font', 'body', 'font', default='arial'),
+                     size=get_cfg('font', 'body', 'font', cast=int, default=10))
+        # self.render_ctx(pdf)
+        draw_line(pdf)
+        self.render_ans(
+            pdf) if not as_template else self.render_template_ans(pdf)
+        pad_until(pdf, start + self.max_pages - 1,
+                  f'padding for question {self.question_number}.{self.part}')
+
+
+    
 
 
 class MCQuestionPart(QuestionPart):
@@ -356,8 +404,12 @@ class MCQuestionPart(QuestionPart):
         self.ans = ans
         self.ctx = ctx
         self.true_ans = true_ans
+        self.score = int(true_ans['key'] == ans)
 
     def render_mc(self, pdf: PDF, mc: list):
+        print("MC:", mc)
+        
+        '''
         for a in mc:
             if isinstance(a, str):
                 pdf.cell(lineWidth, txt=str(a))
@@ -368,17 +420,27 @@ class MCQuestionPart(QuestionPart):
                                txr=f'{a["key"]}: {a["val"]}')
             else:
                 pdf.cell(lineWidth, txt=json.dumps(a))
-
+        '''
     def render_ctx(self, pdf):
         self.render_mc(pdf, self.ctx)
 
     def render_expected(self, pdf):
-        render_part_header(pdf, "Expected Answer(s)")
-        self.render_mc(pdf, self.true_ans)
+        #render_part_header(pdf, "Correct Answer(s)")
+        pdf.multi_cell(lineWidth, lineHeight, txt=f'Correct answer: {self.true_ans["key"]}')
+        #self.render_mc(pdf, self.true_ans)
 
     def render_ans(self, pdf):
-        self.render_mc(pdf, self.ans if not isinstance(
-            self.ans, (dict, list)) else json.dumps(self.ans))
+        pdf.multi_cell(lineWidth, lineHeight, txt="Your answer: " + to_latin1(f'{self.ans}'))
+        #self.render_mc(pdf, self.ans if not isinstance(
+         #   self.ans, (dict, list)) else json.dumps(self.ans))
+
+    def render_full(self, pdf: PDF):
+        empty_bubble = u"\u25CB"
+        full_bubble = u"\u25CF"
+        answers = ['a', 'b', 'c', 'd']
+        answer_bubbles = [full_bubble if self.ans == a else empty_bubble for a in answers]
+        line = "     ".join([answers[i] + " " + answer_bubbles[i] for i in range(len(answers))])
+        pdf.multi_cell(lineWidth, lineHeight, txt=f"{self.part}) {self.ans}")
 
 
 class ArrayQuestionPart(QuestionPart):
@@ -386,12 +448,22 @@ class ArrayQuestionPart(QuestionPart):
         super().__init__(question_number, part, key, score, weight)
         self.ans = ans
         self.true_ans = true_ans
+        if isinstance(ans, list):
+            self.score = int(ans == [a['key'] for a in true_ans])
+        else:
+            self.score = int(len(true_ans) == 1 and true_ans[0]['key'] == ans)
+
 
     def render_expected(self, pdf):
-        pdf.multi_cell(lineWidth, lineHeight, txt=str(self.true_ans))
+        expected = "Correct answer(s): " + ", ".join([a['key'] for a in self.true_ans])
+        pdf.multi_cell(lineWidth, lineHeight, txt=expected)
 
     def render_ans(self, pdf):
-        pdf.multi_cell(lineWidth, lineHeight, txt=str(self.ans))
+        answer = "Your answer(s): " + ", ".join(self.ans)
+        pdf.multi_cell(lineWidth, lineHeight, txt=answer)
+
+    def render_full(self, pdf: PDF):
+        pdf.multi_cell(lineWidth, lineHeight, txt=f"{self.part}) {', '.join(list(self.ans))}")
 
 
 class SymbolicQuestionPart(QuestionPart):
@@ -430,6 +502,7 @@ class StudentQuestion:
         ans_key = json.loads(raw_ans_key)
         self.part_count = len(q.parts) + len(q.expected_files)
         self.max_parts = len(q.expected_files) + len(ans_key)
+        
         self.parts = self.get_question_parts(
             self.params,
             ans_key,
@@ -456,6 +529,8 @@ class StudentQuestion:
         while len(expected_parts) > 0:
             p = expected_parts.pop(0)
             v = student_answer.get(p, None)
+            ans = ans_key.get(p, None)
+           # print(params.get(p))
             score = partial_scores.get(p, None)
             s = int(score.get('score', 0)) if score else 0
             w = int(score.get('weight', 1)) if score else 0
@@ -464,10 +539,10 @@ class StudentQuestion:
                 v = "No answer provided."
                 part = StringQuestionPart(q_no, part_no, p, s, w,
                                           params.get(p, ""), ans_key.get(p, ""), v)
-            elif p.find('res') == 0 and isinstance(ans_key.get(p, False), list) and isinstance(params.get(p, False), list):
+            elif isinstance(ans_key.get(p, False), dict):
                 part = MCQuestionPart(q_no, part_no, p, s, w,
                                       params.get(p, []), ans_key.get(p, []), v)
-            elif isinstance(v, list):
+            elif isinstance(ans_key.get(p, False), list):
                 part = ArrayQuestionPart(q_no, part_no, p, s, w,
                                          ans_key.get(p, []), v)
             elif isinstance(v, dict) and v.get("_type", "") == "sympy":
@@ -515,10 +590,15 @@ class StudentQuestion:
         #if get_cfg('questions', 'dumpParams', default=False):
          #   pdf.multi_cell(lineWidth, lineHeight, txt=json.dumps(self.params))
           #  draw_line(pdf)
+        
         for i, p in enumerate(self.parts):
-            if i != 0:
-                pdf.add_page()
-            p.render(pdf, template)
+            if self.question.is_mc:
+                p.render_full(pdf)
+                draw_line(pdf)
+            else:
+                if i != 0:
+                    pdf.add_page()
+                p.render(pdf, template)
 
 
 class Submission:
@@ -526,8 +606,10 @@ class Submission:
         encapsulates a student pl submission.
     '''
 
-    def __init__(self, uid: str):
+    def __init__(self, uid: str, name="", sid=-1):
         self.uid = uid
+        self.name = name
+        self.sid = sid
         self.questions = dict()
 
     def add_student_question(self, q: StudentQuestion):
@@ -542,11 +624,14 @@ class Submission:
         '''
         pdf.set_font(get_cfg('font', 'title', 'font', default="arial"),
                      size=get_cfg('font', 'title', 'size',
-                                  default=10, cast=int),
+                                  default=9, cast=int),
                      style="U")
         pdf.cell(0, 60, ln=1)
         id = self.uid if not template else " " * len(self.uid)
-        pdf.cell(0, 20, f'PL UID: {id}', ln=1, align='C')
+        name = self.name if not template else " " * len(self.name)
+        pdf.cell(0, 20, f'Name: {name}', align='L')
+        pdf.cell(0, 20, f'SID: {self.sid}', align='L')
+        pdf.cell(0, 20, f'Email: {id}@berkeley.edu', align='L')
 
     def render_submission(self, pdf: PDF, qMap: AssignmentConfig, is_template=False, template_submission=None):
         '''

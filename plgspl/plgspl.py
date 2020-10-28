@@ -29,11 +29,11 @@ def main():
     if cmd == 'pdf':
         args = list(map(append_cwd, sys.argv[2:]))
         validate_files(args[0:1])
-        file_dir = args[2] if len(args) == 3 else None
+        file_dir = args[2] if len(args) >= 3 else None
         if file_dir and not os.path.isdir(file_dir):
             print("Unable to find the given file directory: %s" % file_dir)
             sys.exit(1)
-        to_pdf(args[0], args[1], file_dir)
+        to_pdf(args[0], args[1], file_dir, args[3])
     elif cmd == "classlist":
         f = sys.argv[2]
         validate_files([f])

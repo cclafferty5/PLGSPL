@@ -1,13 +1,13 @@
 {
   "configFiles": [],
   "gs": {
-    "pagesPerPDF": 250
+    "pagesPerPDF": 500
   },
   "maxPages": {
     "description": "maximum pages to devote to a given file/answer part/type, including question ctx",
-    "file": 3,
-    "string": 2,
-    "default": 2
+    "file": 1,
+    "string": 1,
+    "default": 1
   },
   "files": {
     "description": "extensions of files plgspl should treat as code, pictures, or markdown",
@@ -23,7 +23,7 @@
   "page": {
     "description": "page sizes in mm",
     "lineWidth": 180,
-    "lineHeight": 12,
+    "lineHeight": 4,
     "size": "a4",
     "orientation": "p"
   },
@@ -33,12 +33,12 @@
     },
     "title": {
       "description": "student uid & cover page styles",
-      "size": 48,
+      "size": 24,
       "font": "courier"
     },
     "header": {
       "description": "question titles",
-      "size": 12,
+      "size": 11,
       "font": "arial",
       "line": {
         "r": 255,
@@ -48,7 +48,7 @@
     },
     "subheader": {
       "description": "question subheaders/parts",
-      "size": 11,
+      "size": 10,
       "font": "arial",
       "line": {
         "r": 255,
@@ -58,12 +58,12 @@
     },
     "body": {
       "description": "file body text",
-      "size": 10,
+      "size": 9,
       "font": "arial"
     },
     "code": {
       "font": "courier",
-      "size": 10
+      "size": 9
     }
   },
   "gsAnchor": {

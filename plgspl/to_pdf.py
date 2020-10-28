@@ -7,10 +7,14 @@ import json
 from plgspl.cfg import get_cfg
 
 
-def to_pdf(info_json, manual_csv, file_dir=None):
+def to_pdf(info_json, manual_csv, file_dir=None, roster=None):
     submissions = dict()
     config = qs.AssignmentConfig()
-
+    if roster:
+        with open(roster) as r:
+            roster_json = json.load(r)
+    else:
+        roster_json = {}
     # load the raw assignment config file
     cfg = json.load(open(info_json))
     out_file = cfg.get("title", "assignment").replace(" ", "_")
@@ -27,7 +31,7 @@ def to_pdf(info_json, manual_csv, file_dir=None):
                                     parts=parts, expected_files=files)
             else:
                 q = qs.QuestionInfo(
-                    raw_q['id'], i + 1, parts=parts, expected_files=files)
+                    raw_q['id'], i + 1, parts=parts, expected_files=files, is_mc=bool(raw_q.get("is_mc", False)))
             config.add_question(q)
     print(
         f'Parsed config. Created {config.get_question_count()} questions and {config.get_variant_count()} variants.', end='\n\n')
@@ -38,13 +42,18 @@ def to_pdf(info_json, manual_csv, file_dir=None):
     manual = pd.read_csv(manual_csv)
     for i, m in manual.iterrows():
         uid_full = m.get('uid', m.get('UID'))
+        roster_map = roster_json.get(uid_full)
+        if roster_map:
+            name, student_id = roster_map
+        else:
+            name, student_id = "Unknown", "Unknown"
         uid = str(uid_full).split("@", 1)[0]
-
+        
         qid = m['qid']
         sid = m['submission_id']
         submission = submissions.get(uid)
         if not submission:
-            submission = qs.Submission(uid)
+            submission = qs.Submission(uid, name, student_id)
             submissions[uid] = submission
         q = config.get_question(qid)
         if not q:
@@ -65,9 +74,13 @@ def to_pdf(info_json, manual_csv, file_dir=None):
     print(f'Created {len(submissions)} submission(s)..')
 
     pdf = PDF()
+    
 
-    def pdf_output(pdf, name):
-        pdf.output(os.path.join(os.getcwd(), f'{out_file}_{name}.pdf'))
+    def pdf_output(pdf, name, uid=""):
+       # try:
+        pdf.output(os.path.join(os.getcwd(), f'{out_file}_{name}-fa20mt1.pdf'))
+       # except:
+       #     print("Couldn't make pdf for submission {} with uid {}".format(name, uid))
 
     prev = 1
     expected_pages = 0
@@ -79,7 +92,6 @@ def to_pdf(info_json, manual_csv, file_dir=None):
         v.render_submission(
             pdf, config, template_submission=template_submission)
         if i == 0:
-            print(v.uid)
             sample_pdf = PDF()
             v.render_submission(sample_pdf, config, True)
             template_submission = v
